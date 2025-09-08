@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="${BASE_URL:-http://localhost:8080}"
+
+ok()   { echo "✅ $1"; }
+fail() { echo "❌ $1"; }
+
+# 1) Users
+U1=$(curl -s -X POST $BASE_URL/users -H 'Content-Type: application/json' \
+    -d '{"name":"Alice","email":"alice@example.com"}' | jq -r .id)
+U2=$(curl -s -X POST $BASE_URL/users -H 'Content-Type: application/json' \
+    -d '{"name":"Bob","email":"bob@example.com"}' | jq -r .id)
+[[ -n "$U1" && -n "$U2" ]] && ok "Created users" || fail "Users not created"
+
+# 2) Poll
+POLL=$(curl -s -X POST $BASE_URL/polls -H 'Content-Type: application/json' \
+    -d "{\"ownerUserId\":\"$U1\",\"question\":\"Best language?\",\"options\":[\"Kotlin\",\"Java\",\"Go\"]}" | jq -r .id)
+[[ -n "$POLL" ]] && ok "Created poll $POLL" || fail "Poll not created"
+
+# 3) Options
+OPT1=$(curl -s $BASE_URL/polls/$POLL | jq -r '.options[0].id')
+OPT2=$(curl -s $BASE_URL/polls/$POLL | jq -r '.options[1].id')
+OPT3=$(curl -s $BASE_URL/polls/$POLL | jq -r '.options[2].id')
+
+# 4) Voting
+curl -s -X POST $BASE_URL/polls/$POLL/votes -H 'Content-Type: application/json' \
+    -d "{\"userId\":\"$U2\",\"optionId\":\"$OPT1\"}" >/dev/null
+curl -s -X POST $BASE_URL/polls/$POLL/votes -H 'Content-Type: application/json' \
+    -d "{\"userId\":\"$U2\",\"optionId\":\"$OPT2\"}" >/dev/null
+COUNT=$(curl -s $BASE_URL/polls/$POLL/votes | jq 'length')
+[[ "$COUNT" -eq 1 ]] && ok "Vote upsert works" || fail "Vote not stored correctly"
+
+# 5) Update poll
+NEWQ="Best programming language in 2025?"
+Q=$(curl -s -X PUT $BASE_URL/polls/$POLL -H 'Content-Type: application/json' \
+    -d "{\"question\":\"$NEWQ\"}" | jq -r .question)
+[[ "$Q" == "$NEWQ" ]] && ok "Poll updated" || fail "Poll update failed"
+
+# 6) Delete option with votes (expect 400)
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE $BASE_URL/polls/$POLL/options/$OPT2)
+[[ "$CODE" == "400" ]] && ok "Reject delete option with votes" || fail "Option delete check failed"
+
+# Delete unused option (expect 204)
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE $BASE_URL/polls/$POLL/options/$OPT3)
+[[ "$CODE" == "204" ]] && ok "Deleted unused option" || fail "Option delete failed"
+
+# 7) Clear votes (expect 204)
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE $BASE_URL/polls/$POLL/votes)
+[[ "$CODE" == "204" ]] && ok "Votes cleared" || fail "Votes not cleared"
+
+# 8) Delete poll (expect 204)
+CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE $BASE_URL/polls/$POLL)
+[[ "$CODE" == "204" ]] && ok "Poll deleted" || fail "Poll not deleted"
+
+# Check votes endpoint (expect 404)
+CODE=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/polls/$POLL/votes)
+[[ "$CODE" == "404" ]] && ok "Votes gone after poll delete" || fail "Votes still accessible"
+
