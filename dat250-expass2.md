@@ -1,7 +1,7 @@
-### Technical Problems
+### Technical Problems 
 
-I did not encounter many technical problems. I started my masters degree in the previous semester, in which I did DAT251, where I had the responsibility of doing this exact task for my groups project. Therefore, I had the necessary installations, and writing controllers etc was quite similar. 
-Last time I did this however, I used some other tool to test http requests, but this time I used curl, which is a bit more work but I wanted to learn this too. 
+I did not encounter many technical problems. I started my masters the previous semester, in which I had DAT251 with a talented group, in which many had completed DAT250 the semester before that. We used many of the same technologies then, and I ended up writing much of the same things then, as I did now. Last time I used swagger to test the endpoints, but I thought it looked interesting to learn to do these things with curl instead. And it was! 
+
 ### Pending issues 
 
-I had taken a few to many shifts in my job, so I opted out of doing the optional tasks. I would al
+I opted out of the optional tasks. 
