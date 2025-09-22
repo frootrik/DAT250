@@ -1,93 +1,118 @@
 package com.example.demo
+
+import jakarta.persistence.EntityManager
+import jakarta.persistence.PersistenceContext
+import jakarta.transaction.Transactional
 import org.springframework.stereotype.Component
-import java.util.concurrent.ConcurrentHashMap
+import java.util.UUID
 
 @Component
-class PollManager {
+class PollManager(
+    @PersistenceContext private val em: EntityManager
+) {
 
-    private val users = ConcurrentHashMap<String, User>()
 
-
-    fun createUser(name: String, email: String): User {
-        val u = User(name = name, email = email)
-        users[u.id] = u
+    @Transactional
+    fun createUser(username: String, email: String): User {
+        val u = User(username, email)
+        em.persist(u)
         return u
     }
 
-    fun listUsers(): List<User> = users.values.toList()
+    fun listUsers(): List<User> =
+        em.createQuery("select u from User u", User::class.java).resultList
 
-    fun getUser(id: String): User? = users[id]
+    fun getUser(id: UUID): User? = em.find(User::class.java, id)
 
-    fun updateUser(id: String, name: String?, email: String?): User? {
-        val u = users[id] ?: return null
-        name?.let {u.name = it}
-        email?.let {u.email = it}
+    @Transactional
+    fun updateUser(id: UUID, username: String?, email: String?): User? {
+        val u = em.find(User::class.java, id) ?: return null
+        username?.let { u.username = it }
+        email?.let { u.email = it }
         return u
     }
 
-    fun deleteUser(id: String): Boolean = users.remove(id) != null
-
-    fun createPoll(ownerUserId: String, question: String, options: List<String>): Poll?{
-        val owner = getUser(ownerUserId) ?: return null
-        val p = Poll(ownerUserId = owner.id, question = question)
-        options.forEach { opt -> p.options.add(VoteOption(text = opt)) }
-        polls[p.id] = p
-        return p
-    }
-
-    private val polls = java.util.concurrent.ConcurrentHashMap<String, Poll>()
-
-    fun listPolls(): List<Poll> = polls.values.toList()
-    fun getPoll(id: String): Poll? = polls[id]
-
-    fun updatePoll(id: String, question: String?): Poll?{
-        val p = polls[id] ?: return null
-        question?.let { p.question = it}
-        return p
-    }
-
-    fun deletePoll(id: String): Boolean {
-        return polls.remove(id) != null
-    }
-
-    fun addOption(pollId: String, text: String): VoteOption?{
-        val p = polls[pollId] ?: return null
-        val vo = VoteOption(text = text)
-        p.options.add(vo)
-        return vo
-    }
-
-    fun deleteOption(pollId: String, optionId: String): Boolean {
-        val p = polls[pollId] ?: return false
-        val used = p.votes.values.any { it.optionId == optionId }
-        if (used) return false
-        return p.options.removeIf { it.id == optionId }
-    }
-
-    fun castVote(pollId: String, userId: String, optionId: String): Vote?{
-        val p = polls[pollId] ?: return null
-        val user = getUser(userId) ?: return null
-        val isOption = p.options.any { it.id == optionId }
-        if (!isOption) return null
-
-        val v = Vote(userId = user.id, pollId = p.id, optionId = optionId)
-        p.votes[user.id] = v
-        return v
-    }
-
-    fun listVotes(pollId: String): List<Vote>? {
-        val p = polls[pollId] ?: return null
-        return p.votes.values.toList()
-    }
-
-    fun clearVotes(pollId: String): Boolean {
-        val p = polls[pollId] ?: return false
-        p.votes.clear()
+    @Transactional
+    fun deleteUser(id: UUID): Boolean {
+        val u = em.find(User::class.java, id) ?: return false
+        em.remove(u)
         return true
     }
 
+
+    @Transactional
+    fun createPoll(ownerUserId: UUID, question: String, options: List<String>): Poll? {
+        val owner = em.find(User::class.java, ownerUserId) ?: return null
+        val p = owner.createPoll(question)
+        options.forEach { caption -> p.addVoteOption(caption) }
+        em.persist(p)
+        return p
+    }
+
+    fun listPolls(): List<Poll> =
+        em.createQuery("select p from Poll p", Poll::class.java).resultList
+
+    fun getPoll(id: UUID): Poll? = em.find(Poll::class.java, id)
+
+    @Transactional
+    fun updatePoll(id: UUID, question: String?): Poll? {
+        val p = em.find(Poll::class.java, id) ?: return null
+        question?.let { p.question = it }
+        return p
+    }
+
+    @Transactional
+    fun deletePoll(id: UUID): Boolean {
+        val p = em.find(Poll::class.java, id) ?: return false
+        em.remove(p)
+        return true
+    }
+
+    @Transactional
+    fun addOption(pollId: UUID, caption: String): VoteOption? {
+        val p = em.find(Poll::class.java, pollId) ?: return null
+        val vo = p.addVoteOption(caption)
+        em.persist(vo)
+        return vo
+    }
+
+    @Transactional
+    fun deleteOption(pollId: UUID, optionId: UUID): Boolean {
+        val opt = em.find(VoteOption::class.java, optionId) ?: return false
+        if (opt.poll?.id != pollId) return false
+
+        val used = em.createQuery(
+            "select count(v) from Vote v where v.votesOn = :opt",
+            java.lang.Long::class.java
+        ).setParameter("opt", opt).singleResult > 0L
+        if (used) return false
+
+        opt.poll?.options?.remove(opt)
+        em.remove(opt)
+        return true
+    }
+
+
+    @Transactional
+    fun castVote(pollId: UUID, userId: UUID, optionId: UUID): Vote? {
+        val user = em.find(User::class.java, userId) ?: return null
+        val option = em.find(VoteOption::class.java, optionId) ?: return null
+        if (option.poll?.id != pollId) return null
+        val vote = user.voteFor(option)
+        em.persist(vote)
+        return vote
+    }
+
+    fun listVotes(pollId: UUID): List<Vote> =
+        em.createQuery(
+            "select v from Vote v where v.votesOn.poll.id = :pid",
+            Vote::class.java
+        ).setParameter("pid", pollId).resultList
+
+    @Transactional
+    fun clearVotes(pollId: UUID): Boolean {
+        val vs = listVotes(pollId)
+        vs.forEach { em.remove(it) }
+        return vs.isNotEmpty()
+    }
 }
-
-
-
-

@@ -1,28 +1,44 @@
 package com.example.demo
 
+import jakarta.persistence.*
+import org.hibernate.annotations.UuidGenerator
 import java.time.Instant
 import java.util.UUID
 
-data class VoteOption(
-    val id: String = UUID.randomUUID().toString(),
-    var text: String
-)
+@Entity
+@Table(name = "polls")
+open class Poll protected constructor() {
 
-data class Vote(
-    val id: String = UUID.randomUUID().toString(),
-    val userId: String,
-    val pollId: String,
-    var optionId: String,
-    val createdAt: Instant = Instant.now()
-)
+    @Id
+    @GeneratedValue
+    @UuidGenerator
+    @Column(columnDefinition = "BINARY(16)")
+    open var id: UUID? = null
 
-data class Poll(
-    val id: String = UUID.randomUUID().toString(),
-    val ownerUserId: String,
-    var question: String,
-    val createdAt: Instant = Instant.now(),
-    val options: MutableList<VoteOption> = mutableListOf(),
-    val votes: MutableMap<String, Vote> = mutableMapOf()
-)
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "created_by_id")
+    open var createdBy: User? = null
 
+    @Column(nullable = false)
+    open var question: String = ""
 
+    @Column(nullable = false)
+    open var createdAt: Instant = Instant.now()
+
+    @OneToMany(mappedBy = "poll", cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OrderBy("presentationOrder ASC")
+    open val options: MutableList<VoteOption> = mutableListOf()
+
+    constructor(createdBy: User, question: String) : this() {
+        this.createdBy = createdBy
+        this.question = question
+    }
+
+    fun addVoteOption(caption: String): VoteOption {
+        val o = VoteOption(this, caption, options.size)
+        options.add(o)
+        return o
+    }
+
+    fun addOption(caption: String): VoteOption = addVoteOption(caption)
+}

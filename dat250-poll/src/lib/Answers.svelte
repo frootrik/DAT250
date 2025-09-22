@@ -21,7 +21,7 @@
         const response = await fetch(`http://localhost:8080/polls/${pollId}`);
         if (!response.ok) {
 
-          throw new Error("Failed to fetch poll");
+          throw new Error("Failed to fetch poll:");
         }
         poll = await response.json();
       } catch (err) {

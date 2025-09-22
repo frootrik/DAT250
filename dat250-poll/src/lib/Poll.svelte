@@ -17,7 +17,7 @@
         options: options.map(opt => opt.text)
         };
         try {
-            const response = await fetch('http://localhost:8080/polls', {
+            const response = await fetch('http://localhost:5173/polls', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
