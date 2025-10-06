@@ -18,14 +18,19 @@ java {
 repositories {
 	mavenCentral()
 }
+springBoot {
+	mainClass.set("com.example.demo.Oblig1ApplicationKt")
+}
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
+	implementation("redis.clients:jedis:6.2.0")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.hibernate.orm:hibernate-core:7.1.1.Final")
 	implementation("org.springframework:spring-orm")
 	implementation("jakarta.persistence:jakarta.persistence-api:3.2.0")

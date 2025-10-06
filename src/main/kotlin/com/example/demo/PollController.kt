@@ -111,4 +111,18 @@ class PollController(private val pm: PollManager) {
     } catch (_: IllegalArgumentException) {
         ResponseEntity.badRequest().body(mapOf("error" to "id must be a UUID"))
     }
+
+    data class PollResultsDTO(val presentationOrder: Int, val count: Long)
+
+    @GetMapping("/{id}/results")
+    fun results(@PathVariable id: String): ResponseEntity<Any> = try {
+        val pid = UUID.fromString(id)
+        val counts = pm.getResultsCached(pid)  // uses cache-aside flow
+        val body = counts.entries.sortedBy { it.key }
+            .map { (order, cnt) -> PollResultsDTO(order, cnt) }
+        ResponseEntity.ok(body)
+    } catch (_: IllegalArgumentException) {
+        ResponseEntity.badRequest().body(mapOf("error" to "id must be a UUID"))
+    }
+
 }

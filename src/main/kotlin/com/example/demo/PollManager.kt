@@ -8,7 +8,7 @@ import java.util.UUID
 
 @Component
 class PollManager(
-    @PersistenceContext private val em: EntityManager
+    @PersistenceContext private val em: EntityManager, private val pollCache: PollCacheRepository
 ) {
 
 
@@ -100,6 +100,9 @@ class PollManager(
         if (option.poll?.id != pollId) return null
         val vote = user.voteFor(option)
         em.persist(vote)
+
+        pollCache.invalidate(pollId)
+
         return vote
     }
 
@@ -115,4 +118,21 @@ class PollManager(
         vs.forEach { em.remove(it) }
         return vs.isNotEmpty()
     }
+
+    fun getResultsCached(pollId: UUID): Map<Int, Long> {
+        pollCache.get(pollId)?.let { return it }
+
+        val poll = em.find(Poll::class.java, pollId) ?: return emptyMap()
+        val base = poll.options.associate { it.presentationOrder to 0L }.toMutableMap()
+        val votes = listVotes(pollId)
+        votes.forEach { v ->
+            val order = requireNotNull(v.votesOn).presentationOrder
+            base[order] = base.getOrDefault(order, 0L) + 1L
+        }
+        val counts = base.toSortedMap()
+
+        pollCache.put(pollId, counts)
+        return counts
+    }
+
 }
