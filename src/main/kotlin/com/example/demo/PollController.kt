@@ -23,23 +23,26 @@ class PollController(private val pm: PollManager) {
             val p = pm.createPoll(ownerId, req.question, req.options)
                 ?: return ResponseEntity.badRequest().body(mapOf("error" to "ownerUserId not found"))
             val pid = requireNotNull(p.id)
-            ResponseEntity.created(URI.create("/polls/$pid")).body(p)
+
+
+            data class CreatePollResponse(val pollId: UUID)
+            ResponseEntity.created(URI.create("/polls/$pid")).body(CreatePollResponse(pid))
+
         } catch (_: IllegalArgumentException) {
             ResponseEntity.badRequest().body(mapOf("error" to "ownerUserId must be a UUID"))
         }
     }
 
     @GetMapping
-    fun list(): List<Poll> = pm.listPolls()
+    fun list(): List<PollDTO> = pm.listPolls().map { it.toDto() }
 
     @GetMapping("/{id}")
     fun get(@PathVariable id: String): ResponseEntity<Any> = try {
         val pid = UUID.fromString(id)
-        pm.getPoll(pid)?.let { ResponseEntity.ok(it) } ?: ResponseEntity.notFound().build()
+        pm.getPoll(pid)?.let { ResponseEntity.ok(it.toDto()) } ?: ResponseEntity.notFound().build()
     } catch (_: IllegalArgumentException) {
         ResponseEntity.badRequest().body(mapOf("error" to "id must be a UUID"))
     }
-
     data class UpdatePollRequest(val question: String?)
 
     @PutMapping("/{id}")
@@ -124,5 +127,15 @@ class PollController(private val pm: PollManager) {
     } catch (_: IllegalArgumentException) {
         ResponseEntity.badRequest().body(mapOf("error" to "id must be a UUID"))
     }
+    data class OptionDTO(val id: UUID, val caption: String, val presentationOrder: Int)
+    data class PollDTO(val id: UUID, val question: String, val options: List<OptionDTO>)
 
+    private fun Poll.toDto(): PollDTO =
+        PollDTO(
+            id = requireNotNull(this.id),
+            question = this.question,
+            options = this.options.map {
+                OptionDTO(requireNotNull(it.id), it.caption, it.presentationOrder)
+            }.sortedBy { it.presentationOrder }
+        )
 }

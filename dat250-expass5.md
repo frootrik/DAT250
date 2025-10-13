@@ -9,12 +9,12 @@ User "eve" logs in
 
 work in Redis, which I did like this:
 
-> sadd online “alice”
-> sadd online “bob”
-> smembers online – “alice”, “bob”
-> srem online “alice”
-> sadd online “eve”
-> smembers online – “bob”, “eve”
+- sadd online “alice” 
+- sadd online “bob”
+- smembers online – “alice”, “bob”
+- srem online “alice”
+- sadd online “eve”
+- smembers online – “bob”, “eve”
 
 Which worked fine. Then I made a Main method in my project to replicate this in Kotlin, which also worked fine. 
 Then I struggled for a while with the Cache assignment, which I'm not sure I understood correctly, and when

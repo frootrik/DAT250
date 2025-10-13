@@ -8,7 +8,9 @@ import java.util.UUID
 
 @Component
 class PollManager(
-    @PersistenceContext private val em: EntityManager, private val pollCache: PollCacheRepository
+    @PersistenceContext private val em: EntityManager,
+    private val pollCache: PollCacheRepository,
+    private val topicService: TopicService
 ) {
 
 
@@ -46,6 +48,10 @@ class PollManager(
         val p = owner.createPoll(question)
         options.forEach { caption -> p.addVoteOption(caption) }
         em.persist(p)
+
+        em.flush()
+        val topic = pollTopicName(p.id!!, p.question)
+        topicService.ensureTopic(topic)
         return p
     }
 
@@ -133,6 +139,34 @@ class PollManager(
 
         pollCache.put(pollId, counts)
         return counts
+    }
+
+    @Transactional
+    fun applyAnonymousVote(pollId: UUID, optionId: UUID): Boolean {
+        println("DBG vote: pollId=$pollId optionId=$optionId")
+
+        val option = em.find(VoteOption::class.java, optionId)
+            ?: run { println("DBG -> option not found"); return false }
+
+        val pol = option.poll
+        println("DBG -> option.pollId=${pol?.id}")
+
+        if (pol?.id != pollId) {
+            println("DBG -> pollId mismatch (option belongs to ${pol?.id})")
+            return false
+        }
+
+        val anon = em.createQuery(
+            "select u from User u where u.username = :u", User::class.java
+        ).setParameter("u", "anonymous").resultList.firstOrNull()
+            ?: User("anonymous", "anonymous@example.com").also { em.persist(it) }
+
+        val vote = anon.voteFor(option)
+        em.persist(vote)
+
+        pollCache.invalidate(pollId)
+        println("DBG -> vote persisted")
+        return true
     }
 
 }

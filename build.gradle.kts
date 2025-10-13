@@ -36,7 +36,10 @@ dependencies {
 	implementation("jakarta.persistence:jakarta.persistence-api:3.2.0")
 	implementation("org.springframework.boot:spring-boot-starter-jdbc")
 	implementation("com.h2database:h2:2.3.232")
+	implementation("org.springframework.kafka:spring-kafka")
+	implementation("com.fasterxml.jackson.core:jackson-databind")
 }
+
 
 kotlin {
 	compilerOptions {
@@ -47,3 +50,10 @@ kotlin {
 tasks.withType<Test> {
 	useJUnitPlatform()
 }
+
+tasks.register<JavaExec>("runStandaloneProducer") {
+	group = "application"
+	classpath = sourceSets["main"].runtimeClasspath
+	mainClass.set("com.example.demo.StandaloneProducerKt")
+}
+
